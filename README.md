@@ -1,43 +1,42 @@
-# Swarm Mod: special-attacks
+# special-attacks
 
-Special attack status effects — Hack, Drain, Overload, Debilitate, Disrupt, Fortify for Swarm
-bool
-string
+特殊攻击模组。管理 8 种特殊 action 的状态机。
 
-## Directory Structure
+## 职责
 
-```
-mods/special-attacks/
-├── Cargo.toml        # Static Bevy Plugin crate
-├── mod.toml          # Mod metadata + configurable parameters
-├── src/lib.rs        # `impl Plugin` entry point
-└── README.md
-```
+- 注册 8 种特殊 action handler 到 ActionRegistry（通过 world.toml `vanilla.special_attacks_enabled` 控制）
+- Status buffer 系统（S16-S22b），每类 special action 独立 typed buffer：
 
-## Configuration
+| Action | Buffer | ID | 效果 |
+|--------|--------|-----|-------|
+| Hack | HackBuffer | S16 | 夺取敌方 drone 控制权（短时） |
+| Drain | DrainBuffer | S17 | 每 tick 吸取目标 Energy |
+| Overload | OverloadBuffer | S18 | 增加目标冷却/疲劳 |
+| Debilitate | DebilitateBuffer | S19 | 降低目标属性 |
+| Disrupt | DisruptBuffer | S20 | 中断持续型动作 |
+| Fortify | FortifyBuffer | S21 | 增强己方防御/抗性 |
+| Leech | LeechBuffer | S22a | 攻击回血 |
+| Fabricate | FabricateBuffer | S22b | 消耗资源生成临时实体 |
 
-See `mod.toml` for all configurable parameters. Server operators can override via:
+- [S22] `status_advance_system` — 唯一 StatusState writer，从 S14 reducer + S16-S22b buffers 读取并统一推进
+- 特殊攻击与 HP 伤害互斥——同一 body part 同一 tick 只能执行一种
+- 持续型攻击在 drone 移动或被 Disrupt 时中断
+- 所有特殊攻击受 `damage_multiplier` 世界规则影响
 
-```bash
-swarm mod config special-attacks <key> <value>
-```
+## 依赖
 
-Or in `world.toml`:
+- bevy
 
+## 配置
+
+world.toml:
 ```toml
-[mods.special-attacks.config]
-# key = value
+[vanilla]
+special_attacks_enabled = ["Hack", "Drain", "Overload", "Debilitate", "Disrupt", "Fortify", "Leech", "Fabricate"]
 ```
+Tutorial/Novice 默认禁用，Standard/Arena 全量启用。
 
-## Engine API
+## 事件
 
-Mods are statically compiled Bevy Plugin crates. Enable this mod with the
-`mod_special_attacks` Cargo feature, or with `vanilla_mods`.
-
-## Publishing
-
-```bash
-git tag v0.1.0
-git push --tags
-swarm mod pack
-```
+- 读取: `ActionRegistry`, `PendingDamage`, `PendingHeal`
+- 写入: `HackBuffer`, `DrainBuffer`, `OverloadBuffer`, `DebilitateBuffer`, `DisruptBuffer`, `FortifyBuffer`, `LeechBuffer`, `FabricateBuffer`, `StatusState`
