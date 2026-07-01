@@ -1,26 +1,6 @@
 use bevy::prelude::*;
 use std::collections::BTreeSet;
-
-pub type PlayerId = u32;
-
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Owner(pub PlayerId);
-
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Position {
-    pub x: i32,
-    pub y: i32,
-    pub room: u32,
-}
-
-#[derive(Component, Debug, Clone)]
-pub struct Drone {
-    pub owner: PlayerId,
-    pub energy: u32,
-    pub fatigue: u32,
-    pub hits: u32,
-    pub hits_max: u32,
-}
+use swarm_engine::components::{Drone, Owner, PlayerId, Position};
 
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct ContinuousAction {
@@ -224,7 +204,10 @@ impl Plugin for SpecialAttacksModPlugin {
     }
 }
 
-pub fn register_special_actions(config: Res<SpecialAttacksConfig>, mut registry: ResMut<ActionRegistry>) {
+pub fn register_special_actions(
+    config: Res<SpecialAttacksConfig>,
+    mut registry: ResMut<ActionRegistry>,
+) {
     for (kind, name) in [
         (SpecialAttackKind::Hack, "Hack"),
         (SpecialAttackKind::Drain, "Drain"),
@@ -252,24 +235,46 @@ macro_rules! drain_buffer_system {
                 buffer.entries.clear();
                 return;
             }
-            intents.entries.extend(buffer.entries.drain(..).map(|entry| ResolvedIntent {
-                kind: $kind,
-                source: entry.source,
-                target: entry.target,
-                amount: scale(entry.amount, config.damage_multiplier),
-            }));
+            intents
+                .entries
+                .extend(buffer.entries.drain(..).map(|entry| ResolvedIntent {
+                    kind: $kind,
+                    source: entry.source,
+                    target: entry.target,
+                    amount: scale(entry.amount, config.damage_multiplier),
+                }));
         }
     };
 }
 
 drain_buffer_system!(hack_buffer_system, HackBuffer, SpecialAttackKind::Hack);
 drain_buffer_system!(drain_buffer_system, DrainBuffer, SpecialAttackKind::Drain);
-drain_buffer_system!(overload_buffer_system, OverloadBuffer, SpecialAttackKind::Overload);
-drain_buffer_system!(debilitate_buffer_system, DebilitateBuffer, SpecialAttackKind::Debilitate);
-drain_buffer_system!(disrupt_buffer_system, DisruptBuffer, SpecialAttackKind::Disrupt);
-drain_buffer_system!(fortify_buffer_system, FortifyBuffer, SpecialAttackKind::Fortify);
+drain_buffer_system!(
+    overload_buffer_system,
+    OverloadBuffer,
+    SpecialAttackKind::Overload
+);
+drain_buffer_system!(
+    debilitate_buffer_system,
+    DebilitateBuffer,
+    SpecialAttackKind::Debilitate
+);
+drain_buffer_system!(
+    disrupt_buffer_system,
+    DisruptBuffer,
+    SpecialAttackKind::Disrupt
+);
+drain_buffer_system!(
+    fortify_buffer_system,
+    FortifyBuffer,
+    SpecialAttackKind::Fortify
+);
 drain_buffer_system!(leech_buffer_system, LeechBuffer, SpecialAttackKind::Leech);
-drain_buffer_system!(fabricate_buffer_system, FabricateBuffer, SpecialAttackKind::Fabricate);
+drain_buffer_system!(
+    fabricate_buffer_system,
+    FabricateBuffer,
+    SpecialAttackKind::Fabricate
+);
 
 pub fn status_advance_system(
     mut commands: Commands,
@@ -313,7 +318,10 @@ pub fn status_advance_system(
                 });
             }
             SpecialAttackKind::Disrupt => {
-                commands.entity(intent.target).insert((DisruptState { remaining_ticks: 1 }, ContinuousAction { disrupted: true }));
+                commands.entity(intent.target).insert((
+                    DisruptState { remaining_ticks: 1 },
+                    ContinuousAction { disrupted: true },
+                ));
             }
             SpecialAttackKind::Fortify => {
                 commands.entity(intent.target).insert(FortifyState {
@@ -329,7 +337,9 @@ pub fn status_advance_system(
                 });
             }
             SpecialAttackKind::Fabricate => {
-                commands.entity(intent.target).insert(FabricateState { remaining_ticks: 1 });
+                commands
+                    .entity(intent.target)
+                    .insert(FabricateState { remaining_ticks: 1 });
                 if let Ok(position) = positions.get(intent.target) {
                     let owner = owners
                         .get(intent.source)
@@ -359,15 +369,26 @@ pub fn status_effect_tick_system(
 ) {
     for (entity, mut state) in &mut drain {
         let drained = if let Ok(mut target) = drones.get_mut(entity) {
-            let drained = target.energy.min(state.amount_per_tick);
-            target.energy -= drained;
+            let drained = target
+                .carry
+                .get("Energy")
+                .copied()
+                .unwrap_or(0)
+                .min(state.amount_per_tick);
+            if drained > 0 {
+                let remaining = target.carry.get("Energy").copied().unwrap_or(0) - drained;
+                target.carry.insert("Energy".to_string(), remaining);
+            }
             drained
         } else {
             0
         };
         if drained > 0 {
             if let Ok(mut source) = drones.get_mut(state.source) {
-                source.energy = source.energy.saturating_add(drained);
+                let current = source.carry.get("Energy").copied().unwrap_or(0);
+                source
+                    .carry
+                    .insert("Energy".to_string(), current.saturating_add(drained));
             }
         }
         tick_or_remove::<DrainState>(&mut commands, entity, &mut state.remaining_ticks);
@@ -413,7 +434,10 @@ pub fn status_effect_tick_system(
     }
 }
 
-pub fn fabricated_ttl_system(mut commands: Commands, mut fabricated: Query<(Entity, &mut Fabricated)>) {
+pub fn fabricated_ttl_system(
+    mut commands: Commands,
+    mut fabricated: Query<(Entity, &mut Fabricated)>,
+) {
     for (entity, mut fabricated) in &mut fabricated {
         fabricated.ttl = fabricated.ttl.saturating_sub(1);
         if fabricated.ttl == 0 {
