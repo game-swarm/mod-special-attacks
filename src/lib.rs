@@ -85,3 +85,18 @@ fn register_action_handler(registry: &mut ActionRegistry, action_type: &str, han
         .handlers
         .insert(action_type.to_string(), handler.to_string());
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_config_enables_all_special_attack_kinds() {
+        let config = SpecialAttacksConfig::default();
+
+        assert_eq!(config.enabled.len(), 8);
+        assert!(config.enabled.contains(&SpecialAttackKind::Hack));
+        assert!(config.enabled.contains(&SpecialAttackKind::Fabricate));
+        assert_eq!(config.damage_multiplier, 10_000);
+    }
+}
