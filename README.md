@@ -40,3 +40,12 @@ Tutorial/Novice 默认禁用，Standard/Arena 全量启用。
 
 - 读取: `ActionRegistry`, `PendingDamage`, `PendingHeal`
 - 写入: `HackBuffer`, `DrainBuffer`, `OverloadBuffer`, `DebilitateBuffer`, `DisruptBuffer`, `FortifyBuffer`, `LeechBuffer`, `FabricateBuffer`, `StatusState`
+
+## Standalone Development
+
+This repository is consumable as an independent Cargo crate. It pins `swarm-engine` from `https://github.com/game-swarm/engine.git` at rev `4f9776302d0784e78bc5f04c7e38e28cc6d4c633`; no sibling checkout layout is required.
+
+```sh
+cargo check
+cargo test
+```
