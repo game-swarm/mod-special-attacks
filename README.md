@@ -4,7 +4,7 @@
 
 ## 职责
 
-- 注册 8 种特殊 action handler 到 ActionRegistry（通过 world.toml `vanilla.special_attacks_enabled` 控制）
+- 按 `SpecialAttacksConfig` 的模式 allowlist 注册特殊 action handler 到 ActionRegistry
 - Status buffer 系统（S16-S22b），每类 special action 独立 typed buffer：
 
 | Action | Buffer | ID | 效果 |
@@ -21,7 +21,7 @@
 - [S22] `status_advance_system` — 唯一 StatusState writer，从 S14 reducer + S16-S22b buffers 读取并统一推进
 - 特殊攻击与 HP 伤害互斥——同一 body part 同一 tick 只能执行一种
 - 持续型攻击在 drone 移动或被 Disrupt 时中断
-- 所有特殊攻击受 `damage_multiplier` 世界规则影响
+- `damage_multiplier` 和 action allowlist 由 strict mod control plane 注入 `SpecialAttacksConfig`
 
 ## 依赖
 
@@ -29,12 +29,17 @@
 
 ## 配置
 
-world.toml:
+Engine 按 `mod.toml` 类型定义解码全局开关、世界 allowlist 和 fixed-bp 伤害倍率，并在注册 action handler 前按世界模式选择对应集合：
 ```toml
-[vanilla]
-special_attacks_enabled = ["Hack", "Drain", "Overload", "Debilitate", "Disrupt", "Fortify", "Leech", "Fabricate"]
+[config]
+special_attacks_enabled = { type = "bool", default = true }
+enabled = { type = "array<SpecialAttack>", default = ["Hack", "Drain", "Overload", "Debilitate", "Disrupt", "Fortify", "Leech", "Fabricate"] }
+tutorial_enabled = { type = "array<SpecialAttack>", default = ["Hack", "Drain", "Fortify"] }
+novice_enabled = { type = "array<SpecialAttack>", default = ["Hack", "Drain", "Overload", "Fortify"] }
+damage_multiplier = { type = "fixed_bp", default = 10000 }
 ```
-Tutorial/Novice 默认禁用，Standard/Arena 全量启用。
+
+Tutorial 使用 `tutorial_enabled`，Novice 使用 `novice_enabled`，其他模式使用 `enabled`；`special_attacks_enabled = false` 时不注册特殊攻击。
 
 ## 事件
 
