@@ -97,6 +97,15 @@ impl SwarmPlugin for SpecialAttacksModPlugin {
                     required: false,
                     validator: Some(ConfigValidator::FixedBasisPoints),
                 },
+                ConfigFieldDescriptor {
+                    key: "fabricate_allowed_output_structures".to_string(),
+                    value_type: ConfigValueType::Array {
+                        item_type: "StructureType".to_string(),
+                    },
+                    default: serde_json::json!(["Tower"]),
+                    required: false,
+                    validator: Some(ConfigValidator::NonEmptyArray),
+                },
             ],
             systems: vec![SystemDescriptor {
                 system_id: "special-attacks.register".to_string(),
@@ -126,7 +135,11 @@ impl SwarmPlugin for SpecialAttacksModPlugin {
             .map(|action_type| ActionDescriptor {
                 action_type: action_type.to_string(),
                 handler: action_type.to_lowercase(),
-                payload_schema: special_attack_payload_schema(),
+                payload_schema: if action_type == "Fabricate" {
+                    fabricate_payload_schema()
+                } else {
+                    special_attack_payload_schema()
+                },
                 command_phase: TickPhase::Command,
                 output_buffer: Some("PendingSpecialAttack".to_string()),
             })
@@ -162,6 +175,17 @@ fn special_attack_payload_schema() -> serde_json::Value {
             "structure": { "type": "string", "minLength": 1 },
             "damage_type": { "type": "string", "minLength": 1 },
             "cooldown": { "type": "integer", "minimum": 0, "maximum": 4_294_967_295_u64 }
+        }
+    })
+}
+
+fn fabricate_payload_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["target_id"],
+        "properties": {
+            "target_id": { "type": "integer", "minimum": 0, "maximum": 18_446_744_073_709_551_615_u64 }
         }
     })
 }
@@ -252,21 +276,44 @@ mod tests {
                 "tutorial_enabled",
                 "novice_enabled",
                 "damage_multiplier",
+                "fabricate_allowed_output_structures",
             ]
         );
+        let fabricate = descriptor
+            .config
+            .iter()
+            .find(|field| field.key == "fabricate_allowed_output_structures")
+            .expect("fabricate output config descriptor");
+        assert_eq!(fabricate.default, serde_json::json!(["Tower"]));
+        assert_eq!(fabricate.validator, Some(ConfigValidator::NonEmptyArray));
         assert_eq!(descriptor.systems.len(), 1);
         assert_eq!(descriptor.actions.len(), 8);
         for action in &descriptor.actions {
             assert_eq!(action.payload_schema["additionalProperties"], false);
-            assert_eq!(
-                action.payload_schema["required"],
+            let required = if action.action_type == "Fabricate" {
+                serde_json::json!(["target_id"])
+            } else {
                 serde_json::json!(["object_id", "target_id"])
-            );
+            };
+            assert_eq!(action.payload_schema["required"], required);
             assert_eq!(
                 action.output_buffer.as_deref(),
                 Some("PendingSpecialAttack")
             );
         }
+        let fabricate_action = descriptor
+            .actions
+            .iter()
+            .find(|action| action.action_type == "Fabricate")
+            .unwrap();
+        assert_eq!(
+            fabricate_action.payload_schema["properties"]
+                .as_object()
+                .unwrap()
+                .keys()
+                .collect::<Vec<_>>(),
+            vec!["target_id"]
+        );
     }
 
     #[test]

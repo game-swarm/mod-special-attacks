@@ -13,6 +13,7 @@ enabled = { type = "array<SpecialAttack>", default = ["Hack", "Drain", "Overload
 tutorial_enabled = { type = "array<SpecialAttack>", default = ["Hack", "Drain", "Fortify"], description = "Special attacks enabled in tutorial worlds" }
 novice_enabled = { type = "array<SpecialAttack>", default = ["Hack", "Drain", "Overload", "Fortify"], description = "Special attacks enabled for novice profiles" }
 damage_multiplier = { type = "fixed_bp", default = 10000, description = "Special attack damage multiplier in fixed basis points" }
+fabricate_allowed_output_structures = { type = "array<StructureType>", default = ["Tower"], description = "Ordered allowed Fabricate replacement structure types" }
 
 [compatibility]
 engine_abi_min = "1.0"
